@@ -1,5 +1,6 @@
 import { CATEGORIES, LEGACY_CATEGORY_MAP, PRIORITIES, STATUSES, type Complaint, type Status, type StatusEvent } from '../types/complaint';
 import { shortText } from './format';
+import { SAMPLE_COUNT } from './demoData';
 
 const KEY = 'campus-issue-reporting:complaints:v1';
 
@@ -74,15 +75,17 @@ export function loadComplaints(): LoadResult {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) throw new Error('not an array');
-    // Sample records from the very first version have no "title": replace them with the new sample set.
-    const legacyDemo = parsed.filter((p) => (p as { isDemo?: boolean })?.isDemo === true && typeof (p as { title?: unknown }).title !== 'string');
-    const kept = parsed.filter((p) => !legacyDemo.includes(p));
+    // Sample records from an older version (no "title", or a different number of samples) are replaced by the current sample set.
+    const isSample = (p: unknown) => (p as { isDemo?: boolean })?.isDemo === true;
+    const samples = parsed.filter(isSample);
+    const outdated = samples.length > 0 && (samples.length !== SAMPLE_COUNT || samples.some((p) => typeof (p as { title?: unknown }).title !== 'string'));
+    const kept = outdated ? parsed.filter((p) => !isSample(p)) : parsed;
     const valid = kept.map(normalize).filter((c): c is Complaint => c !== null);
     const skipped = kept.length - valid.length;
     return {
       complaints: valid,
       isFirstRun: false,
-      reseedDemo: legacyDemo.length > 0,
+      reseedDemo: outdated,
       warning: skipped > 0 ? `${skipped} saved complaint(s) were damaged and could not be loaded.` : undefined,
     };
   } catch {

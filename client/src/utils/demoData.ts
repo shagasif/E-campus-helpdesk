@@ -2,6 +2,10 @@ import type { Category, Complaint, Priority, Status } from '../types/complaint';
 
 const DAY = 86_400_000;
 
+// How many sample complaints are created, and how many days ago each one was reported.
+export const SAMPLE_COUNT = 7;
+const AGES_IN_DAYS = [0.3, 2, 6, 14, 28, 45, 70];
+
 // [category, title, description]
 const TEMPLATES: [Category, string, string][] = [
   ['computer_hardware', 'Lab computer shuts down repeatedly', 'The computer switches off repeatedly while students are using it.'],
@@ -34,10 +38,10 @@ const PRIORITY_CYCLE: Priority[] = ['high', 'medium', 'low', 'medium', 'high', '
 /** Clearly-labelled SAMPLE records so the dashboards have something to show. They are not real campus reports. */
 export function makeDemoComplaints(): Complaint[] {
   const now = Date.now();
-  return Array.from({ length: 28 }, (_, i) => {
+  return Array.from({ length: SAMPLE_COUNT }, (_, i) => {
     const [category, title, description] = TEMPLATES[(i * 5) % TEMPLATES.length];
     const [building, room] = PLACES[i % PLACES.length];
-    const ageDays = i < 6 ? i * 0.7 + 0.2 : i * 5.6 + 1;
+    const ageDays = AGES_IN_DAYS[i];
     const createdAt = new Date(now - ageDays * DAY).toISOString();
     let status: Status = (['pending', 'in_progress', 'resolved', 'resolved'] as Status[])[i % 4];
     if (ageDays > 60) status = i % 6 === 0 ? 'in_progress' : 'resolved';
