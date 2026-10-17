@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF8E8"/><stop offset=".45" stop-color="#FFEBC2"/><stop offset=".72" stop-color="#FFD98A"/><stop offset="1" stop-color="#F6C86B"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="1150" cy="430" r="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/><stop offset=".25" stop-color="#FFF3B8" stop-opacity=".75"/><stop offset="1" stop-color="#FFE08A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lawn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E9DB9C"/><stop offset="1" stop-color="#CDB766"/>
+    </linearGradient>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#EAD3AA"/><stop offset=".6" stop-color="#F3E1BC"/><stop offset="1" stop-color="#E2C898"/>
+    </linearGradient>
+    <pattern id="win" width="46" height="70" patternUnits="userSpaceOnUse">
+      <rect x="12" y="14" width="22" height="40" rx="11" fill="#8C6A3A" fill-opacity=".28"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <rect width="1600" height="900" fill="url(#sun)"/>
+  <polygon points="1150,430 700,0 980,0" fill="#fff" fill-opacity=".10"/>
+  <polygon points="1150,430 1050,0 1350,0" fill="#fff" fill-opacity=".08"/>
+  <path d="M0 560 C220 500 380 540 560 520 S900 470 1100 510 1400 480 1600 520 V700 H0Z" fill="#E4C98E" fill-opacity=".55"/>
+  <g>
+    <rect x="450" y="470" width="150" height="190" fill="url(#wall)"/>
+    <rect x="450" y="470" width="150" height="190" fill="url(#win)"/>
+    <rect x="1230" y="470" width="170" height="190" fill="url(#wall)"/>
+    <rect x="1230" y="470" width="170" height="190" fill="url(#win)"/>
+    <rect x="600" y="420" width="630" height="240" fill="url(#wall)"/>
+    <rect x="600" y="420" width="630" height="240" fill="url(#win)" opacity=".8"/>
+    <polygon points="690,420 915,330 1140,420" fill="#E0C48F"/>
+    <polygon points="720,420 915,345 1110,420" fill="#F1DFB6"/>
+    <g fill="#F7ECD0" stroke="#D9BC88" stroke-width="2">
+      <rect x="700" y="430" width="26" height="230"/><rect x="760" y="430" width="26" height="230"/><rect x="820" y="430" width="26" height="230"/>
+      <rect x="882" y="430" width="26" height="230"/><rect x="944" y="430" width="26" height="230"/><rect x="1006" y="430" width="26" height="230"/><rect x="1068" y="430" width="26" height="230"/>
+    </g>
+    <rect x="860" y="190" width="110" height="150" fill="url(#wall)"/>
+    <rect x="852" y="178" width="126" height="20" fill="#DDBF88"/>
+    <circle cx="915" cy="250" r="26" fill="#FFF8E6" stroke="#C99A3B" stroke-width="5"/>
+    <path d="M915 234v16l10 8" stroke="#8C6A3A" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M866 178 L915 100 L964 178Z" fill="#D8A93A"/>
+    <rect x="600" y="650" width="630" height="14" fill="#D9BC88"/>
+    <rect x="570" y="662" width="690" height="12" fill="#E6D0A2"/>
+  </g>
+  <g fill="#B79B52" fill-opacity=".75">
+    <circle cx="300" cy="520" r="70"/><circle cx="360" cy="560" r="60"/><circle cx="240" cy="570" r="58"/>
+    <circle cx="1480" cy="520" r="74"/><circle cx="1420" cy="570" r="60"/><circle cx="1540" cy="575" r="56"/>
+  </g>
+  <g fill="#9F8440" fill-opacity=".55">
+    <rect x="292" y="560" width="14" height="110"/><rect x="1474" y="565" width="14" height="105"/>
+  </g>
+  <path d="M0 640 H1600 V900 H0Z" fill="url(#lawn)"/>
+  <path d="M760 674 L840 900 H1000 L1070 674Z" fill="#F3E6BF" fill-opacity=".9"/>
+  <path d="M0 760 C300 730 600 770 900 750 S1400 735 1600 760" stroke="#fff" stroke-opacity=".25" stroke-width="3" fill="none"/>
+</svg>
