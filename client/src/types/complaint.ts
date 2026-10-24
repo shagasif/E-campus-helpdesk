@@ -1,6 +1,7 @@
 export type Category =
-  | 'computer_hardware' | 'projector_av' | 'internet_network' | 'electrical' | 'ac_ventilation'
-  | 'furniture_classroom' | 'building_maintenance' | 'cleanliness_sanitation' | 'safety_security' | 'other';
+  | 'computer_hardware' | 'projector_av' | 'internet_network' | 'electrical' | 'building_maintenance'
+  | 'water_plumbing' | 'cleanliness_sanitation' | 'canteen' | 'furniture_classroom' | 'parking_transport'
+  | 'safety_security' | 'other';
 export type Status = 'pending' | 'in_progress' | 'resolved';
 export type Priority = 'low' | 'medium' | 'high';
 
@@ -15,7 +16,9 @@ export interface Complaint {
   id: string; // the complaint reference, e.g. CIR-20261012-K7Q2
   title: string;
   category: Category;
+  campus?: string; // optional: which campus
   building: string;
+  area?: string; // optional: affected area or department
   room: string;
   description: string; // original text, never changed by the AI feature
   imageData?: string; // browser-local image (data URL)
@@ -34,28 +37,32 @@ export interface Complaint {
 }
 
 export const CATEGORIES: Category[] = [
-  'computer_hardware', 'projector_av', 'internet_network', 'electrical', 'ac_ventilation',
-  'furniture_classroom', 'building_maintenance', 'cleanliness_sanitation', 'safety_security', 'other',
+  'computer_hardware', 'projector_av', 'internet_network', 'electrical', 'building_maintenance',
+  'water_plumbing', 'cleanliness_sanitation', 'canteen', 'furniture_classroom', 'parking_transport',
+  'safety_security', 'other',
 ];
 export const STATUSES: Status[] = ['pending', 'in_progress', 'resolved'];
 export const PRIORITIES: Priority[] = ['low', 'medium', 'high'];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
-  computer_hardware: 'Computer & Hardware',
-  projector_av: 'Projector & AV Equipment',
-  internet_network: 'Internet & Network',
-  electrical: 'Electrical Issues',
-  ac_ventilation: 'Air Conditioning & Ventilation',
-  furniture_classroom: 'Furniture & Classroom',
-  building_maintenance: 'Building & Maintenance',
-  cleanliness_sanitation: 'Cleanliness & Sanitation',
-  safety_security: 'Safety & Security',
-  other: 'Other',
+  computer_hardware: 'Computer and IT Equipment',
+  projector_av: 'Projector and Classroom Equipment',
+  internet_network: 'Wi-Fi and Internet',
+  electrical: 'Electricity, Fans and Lights',
+  building_maintenance: 'Building and Maintenance',
+  water_plumbing: 'Water Supply and Plumbing',
+  cleanliness_sanitation: 'Washrooms and Cleanliness',
+  canteen: 'Canteen and Cafeteria',
+  furniture_classroom: 'Furniture and Classroom Facilities',
+  parking_transport: 'Parking and Transport',
+  safety_security: 'Safety and Security',
+  other: 'Other Campus Problems',
 };
 
-// Complaints saved with the old category list are moved to the matching new category when they are loaded.
+// Complaints saved with an older category list are moved to the matching new category when they are loaded.
 export const LEGACY_CATEGORY_MAP: Record<string, Category> = {
-  computer: 'computer_hardware', projector: 'projector_av', wifi: 'internet_network', light: 'electrical', fan: 'ac_ventilation',
+  computer: 'computer_hardware', projector: 'projector_av', wifi: 'internet_network', light: 'electrical', fan: 'electrical',
+  ac_ventilation: 'electrical',
 };
 export const STATUS_LABELS: Record<Status, string> = { pending: 'Pending', in_progress: 'In Progress', resolved: 'Resolved' };
 export const PRIORITY_LABELS: Record<Priority, string> = { low: 'Low', medium: 'Medium', high: 'High' };

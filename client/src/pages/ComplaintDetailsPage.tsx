@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useComplaints, useVisibleComplaints } from '../context/ComplaintsContext';
-import { useBase } from '../context/AuthContext';
+import { displayName, useAuth, useBase } from '../context/AuthContext';
 import { CATEGORY_LABELS, locationText } from '../types/complaint';
 import { StatusBadge, PriorityBadge } from '../components/StatusBadge';
 import { StatusTimeline } from '../components/StatusTimeline';
@@ -13,14 +14,18 @@ import { useToast } from '../context/ToastContext';
 /** User view of one of their own complaints (read-only). */
 export function ComplaintDetailsPage() {
   const { id } = useParams();
-  const { setAiSummary } = useComplaints();
+  const { setAiSummary, reopenComplaint } = useComplaints();
+  const { session } = useAuth();
+  const [reopening, setReopening] = useState(false);
+  const [reason, setReason] = useState('');
+  const [reopenError, setReopenError] = useState<string | null>(null);
   const visible = useVisibleComplaints();
   const base = useBase();
   const { toast } = useToast();
   const c = visible.find((x) => x.id === id);
 
   if (!c) {
-    return <EmptyState icon="search" title="Complaint not found" text={`There is no complaint with ID “${id}” available to you.`} action={<Link className="btn btn-primary" to={`${base}/complaints`}>Back to my complaints</Link>} />;
+    return <EmptyState icon="search" title="Complaint not found" text={`There is no complaint with ID “${id}” available to you.`} action={<Link className="btn btn-primary" to={`${base}/requests`}>Back to my requests</Link>} />;
   }
 
   // Opens the browser's print dialog showing a clean record. Choose "Save as PDF" there to download a PDF.
@@ -33,13 +38,20 @@ export function ComplaintDetailsPage() {
     window.print();
   }
 
+  function reopen() {
+    const result = reopenComplaint(c!.id, displayName(session), reason);
+    if (!result.ok) { setReopenError(result.error); return; }
+    setReopening(false); setReason(''); setReopenError(null);
+    toast('Complaint reopened. It is now Pending again.');
+  }
+
   return (
     <>
       <header className="print-only print-head">
         <strong>E-Campus Helpdesk</strong>
         <span>Complaint record · generated {formatDateTime(new Date().toISOString())}</span>
       </header>
-      <Link className="back-link no-print" to={`${base}/complaints`}><Icon name="back" size={16} /> My complaints</Link>
+      <Link className="back-link no-print" to={`${base}/requests`}><Icon name="back" size={16} /> My requests</Link>
       <header className="page-head page-head-row">
         <div>
           <div className="mono muted">{c.id}{c.isDemo && <span className="demo-tag">Sample</span>}</div>
@@ -57,6 +69,8 @@ export function ComplaintDetailsPage() {
             <dl className="info-grid">
               <div><dt>Category</dt><dd><span className="cat"><CategoryIcon category={c.category} size={16} />{CATEGORY_LABELS[c.category]}</span></dd></div>
               <div><dt>Location</dt><dd>{locationText(c)}</dd></div>
+              {c.campus && <div><dt>Campus</dt><dd>{c.campus}</dd></div>}
+              {c.area && <div><dt>Affected area</dt><dd>{c.area}</dd></div>}
               <div><dt>Submitted</dt><dd>{formatDateTime(c.createdAt)}</dd></div>
               <div><dt>Assigned to</dt><dd>{c.assignedTo ?? 'Not assigned yet'}</dd></div>
             </dl>
@@ -83,6 +97,23 @@ export function ComplaintDetailsPage() {
               </>
             ) : (
               <p className="muted small">No resolution notes yet. The administrator will add one when the issue is resolved.</p>
+            )}
+            {c.status === 'resolved' && !c.isDemo && (
+              <div className="reopen-box no-print">
+                {!reopening ? (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setReopening(true)}>The problem is not fixed: reopen</button>
+                ) : (
+                  <div className="field">
+                    <label htmlFor="reopen-reason">Why should this be reopened?</label>
+                    <textarea id="reopen-reason" className="input" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={!!reopenError} />
+                    {reopenError && <p className="field-error" role="alert">{reopenError}</p>}
+                    <div className="row">
+                      <button type="button" className="btn btn-primary btn-sm" onClick={reopen}>Reopen complaint</button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setReopening(false); setReopenError(null); }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </section>
         </div>

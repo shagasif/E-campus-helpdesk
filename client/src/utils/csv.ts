@@ -17,6 +17,11 @@ export function complaintsToCsv(list: Complaint[]): string {
   return '\uFEFF' + [HEADERS, ...rows].map((r) => r.map(cell).join(',')).join('\r\n');
 }
 
+/** Any table as CSV text (same safety rules as the complaint export). */
+export function tableToCsv(headers: string[], rows: unknown[][]): string {
+  return '\uFEFF' + [headers, ...rows].map((r) => r.map(cell).join(',')).join('\r\n');
+}
+
 export function downloadCsv(filename: string, csv: string) {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const a = document.createElement('a');

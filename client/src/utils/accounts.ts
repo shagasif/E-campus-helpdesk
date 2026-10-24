@@ -159,3 +159,19 @@ export async function changeAdminPassword(current: string, next: string): Promis
   const profile = { ...loadAdminProfile(), passwordHash: await hashPassword(ADMIN_EMAIL, next) };
   return saveAdminProfile(profile) ? { ok: true } : { ok: false, error: 'The new password could not be saved (browser storage is blocked).' };
 }
+
+/**
+ * "Forgot password" for a user account. A prototype cannot send e-mail, so the person proves it is their account by
+ * typing the full name and department saved at registration. This is NOT real security; a real site would e-mail a reset link.
+ */
+export async function resetUserPassword(email: string, name: string, department: string, newPassword: string): Promise<SimpleResult> {
+  const id = email.trim().toLowerCase();
+  if (id === ADMIN_EMAIL) return { ok: false, error: 'The administrator password cannot be reset here.' };
+  const accounts = loadAccounts();
+  const i = accounts.findIndex((a) => a.email.toLowerCase() === id);
+  const same = (a: string, b: string) => a.trim().toLowerCase().replace(/\s+/g, ' ') === b.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (i < 0 || !same(accounts[i].name, name) || !same(accounts[i].department, department)) return { ok: false, error: 'These details do not match an account in this browser.' };
+  if (newPassword.length < 6) return { ok: false, error: 'Use at least 6 characters.' };
+  accounts[i] = { ...accounts[i], passwordHash: await hashPassword(accounts[i].email, newPassword) };
+  return persist(accounts) ? { ok: true } : { ok: false, error: 'Browser storage is blocked, so the new password could not be saved.' };
+}

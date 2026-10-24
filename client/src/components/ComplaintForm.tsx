@@ -18,7 +18,9 @@ export function ComplaintForm() {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<Category | ''>('');
+  const [campus, setCampus] = useState('');
   const [building, setBuilding] = useState('');
+  const [area, setArea] = useState('');
   const [room, setRoom] = useState('');
   const [description, setDescription] = useState('');
   const [imageData, setImageData] = useState<string | undefined>();
@@ -77,7 +79,7 @@ export function ComplaintForm() {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const c = addComplaint({ title, category, building, room, description, imageData, aiSummary, submittedBy: session?.id.toLowerCase() });
+      const c = addComplaint({ title, category, campus, building, area, room, description, imageData, aiSummary: aiSummary?.trim() || undefined, submittedBy: session?.id.toLowerCase() });
       setSubmittedId(c.id);
     } catch {
       setSubmitError('Something went wrong while saving the complaint. Please try again.');
@@ -88,7 +90,7 @@ export function ComplaintForm() {
   }
 
   function reset() {
-    setTitle(''); setCategory(''); setBuilding(''); setRoom(''); setDescription('');
+    setTitle(''); setCategory(''); setCampus(''); setBuilding(''); setArea(''); setRoom(''); setDescription('');
     setImageData(undefined); setAiSummary(undefined); setErrors({}); setSubmittedId(null); setImageError(null);
   }
 
@@ -130,6 +132,17 @@ export function ComplaintForm() {
 
       <div className="field-row">
         <div className="field">
+          <label htmlFor="campus">Campus <span className="muted small">(if applicable)</span></label>
+          <input id="campus" className="input" value={campus} onChange={(e) => setCampus(e.target.value)} placeholder="e.g. Main Campus" maxLength={80} />
+        </div>
+        <div className="field">
+          <label htmlFor="area">Affected area or department <span className="muted small">(optional)</span></label>
+          <input id="area" className="input" value={area} onChange={(e) => setArea(e.target.value)} placeholder="e.g. Computer Science Department" maxLength={80} />
+        </div>
+      </div>
+
+      <div className="field-row">
+        <div className="field">
           <label htmlFor="building">Building <span className="req" aria-hidden="true">*</span></label>
           <input id="building" className="input" value={building} onChange={(e) => setBuilding(e.target.value)} placeholder="e.g. Block A" {...field('building')} />
           {err('building')}
@@ -149,9 +162,12 @@ export function ComplaintForm() {
           <span className="muted small">{description.trim().length}/{MAX_DESC}</span>
         </div>
         <AiSummaryBox description={description} useLabel="Attach this summary" onUse={setAiSummary} />
-        {aiSummary && (
-          <div className="ai-attached">
-            <div><span className="ai-label">Attached AI summary (suggested)</span><p>{aiSummary}</p></div>
+        {aiSummary !== undefined && (
+          <div className="ai-attached ai-edit">
+            <div className="field">
+              <label htmlFor="ai-summary" className="ai-label">Attached AI summary (suggested). You can edit it before submitting.</label>
+              <textarea id="ai-summary" className="input" rows={2} maxLength={300} value={aiSummary} onChange={(e) => setAiSummary(e.target.value)} />
+            </div>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAiSummary(undefined)}>Remove</button>
           </div>
         )}

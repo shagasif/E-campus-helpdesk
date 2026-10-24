@@ -2,10 +2,13 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { ErrorBoundary } from './ErrorBoundary';
 import { useComplaints } from '../context/ComplaintsContext';
+import { useRequests } from '../context/RequestsContext';
 import { Icon } from './Icon';
 
 export function AppLayout() {
-  const { warning } = useComplaints();
+  const { warning: complaintsWarning } = useComplaints();
+  const { warning: requestsWarning } = useRequests();
+  const warning = complaintsWarning ?? requestsWarning;
   return (
     <div className="layout">
       <Sidebar />

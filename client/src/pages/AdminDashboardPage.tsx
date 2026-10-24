@@ -1,21 +1,15 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useComplaints } from '../context/ComplaintsContext';
+import { useRequests } from '../context/RequestsContext';
+import { buildRows, TYPE_LABELS } from '../utils/unifiedRequests';
+import { makeNameLookup } from '../utils/adminData';
 import { displayName, useAuth, useBase } from '../context/AuthContext';
-import { computeStats } from '../utils/complaintStats';
 import { CATEGORY_LABELS, locationText, type Complaint } from '../types/complaint';
-import { StatCard } from '../components/StatCard';
+import { RequestStats } from '../components/RequestStats';
 import { StatusBadge, PriorityBadge } from '../components/StatusBadge';
 import { CategoryIcon, Icon } from '../components/Icon';
-import { EmptyState } from '../components/EmptyState';
-import { Skeleton } from '../components/Skeleton';
 import { formatDate } from '../utils/format';
-
-// Charts are loaded on demand, so the page shows a real loading state while they download.
-const TrendChart = lazy(() => import('../components/charts').then((m) => ({ default: m.TrendChart })));
-const StatusChart = lazy(() => import('../components/charts').then((m) => ({ default: m.StatusChart })));
-const CategoryChart = lazy(() => import('../components/charts').then((m) => ({ default: m.CategoryChart })));
-const chartFallback = <div role="status" aria-label="Loading chart"><Skeleton height={250} /></div>;
 
 function MiniList({ items, base, empty }: { items: Complaint[]; base: string; empty: string }) {
   if (items.length === 0) return <p className="muted">{empty}</p>;
@@ -41,12 +35,9 @@ export function AdminDashboardPage() {
   const { session } = useAuth();
   const base = useBase();
   const { complaints, hasDemo, removeDemoData } = useComplaints();
-  const [months, setMonths] = useState<6 | 12>(6);
-  const stats = useMemo(() => computeStats(complaints, months), [complaints, months]);
-  const cur = stats.trendData[stats.trendData.length - 1];
-  const prev = stats.trendData[stats.trendData.length - 2];
-  const delta = cur.reported - prev.reported;
-  const recent = useMemo(() => [...complaints].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5), [complaints]);
+  const { requests } = useRequests();
+  const rows = useMemo(() => buildRows(complaints, requests, base, makeNameLookup()), [complaints, requests, base]);
+  const latest = rows.slice(0, 6);
   const urgent = useMemo(() => complaints.filter((c) => c.priority === 'high' && c.status !== 'resolved').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5), [complaints]);
 
   return (
@@ -67,53 +58,32 @@ export function AdminDashboardPage() {
         </div>
       )}
 
-      <section className="stats stats-5" aria-label="Complaint overview">
-        <StatCard label="Total Complaints" value={stats.total} icon="file" tone="gold" />
-        <StatCard label="Pending" value={stats.pending} icon="clock" tone="pending" />
-        <StatCard label="In Progress" value={stats.in_progress} icon="wrench" tone="in_progress" />
-        <StatCard label="Resolved" value={stats.resolved} icon="done" tone="resolved" />
-        <StatCard label="Resolution Rate" value={`${stats.resolutionRate}%`} icon="gauge" tone="gold" hint={`${stats.resolved} of ${stats.total} resolved`} />
+      <RequestStats rows={rows} />
+
+      <section className="card recent">
+        <div className="section-head"><h2>Latest requests</h2><Link className="link" to={`${base}/requests`}>See all requests →</Link></div>
+        {latest.length === 0 ? <p className="muted">No requests yet.</p> : (
+          <ul className="mini-list">
+            {latest.map((r) => (
+              <li key={`${r.type}-${r.id}`}>
+                <Link to={r.to} className="mini-item">
+                  <span className="mini-main">
+                    <strong>{r.title}</strong>
+                    <span className="muted small">{r.id} · {TYPE_LABELS[r.type]} · {r.submitterName || r.submittedBy || 'Unknown'}{r.dept ? ` · ${r.dept}` : ''} · {formatDate(r.createdAt)}</span>
+                  </span>
+                  <span className="mini-badges"><span className={`badge badge-${r.statusClass}`}>{r.statusLabel}</span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
-      {stats.total === 0 ? (
-        <EmptyState icon="inbox" title="No complaints yet" text="Charts and lists appear here as soon as users report issues." />
-      ) : (
-        <>
-          <section className="charts charts-trend">
-            <div className="card chart-card">
-              <div className="trend-head">
-                <div>
-                  <h2>Monthly complaint trend</h2>
-                  <p className="muted small chart-sub">Complaints reported vs resolved</p>
-                </div>
-                <div className="seg-toggle" role="group" aria-label="Trend period">
-                  {([6, 12] as const).map((m) => (
-                    <button key={m} type="button" className={months === m ? 'on' : ''} aria-pressed={months === m} onClick={() => setMonths(m)}>{m} months</button>
-                  ))}
-                </div>
-              </div>
-              <div className="trend-chips">
-                <span className="chip"><i className="dot dot-maroon" />Reported <strong>{cur.reported}</strong> this month
-                  <em className={delta > 0 ? 'delta up' : delta < 0 ? 'delta down' : 'delta'}>{delta > 0 ? '▲' : delta < 0 ? '▼' : '•'} {Math.abs(delta)} vs last month</em>
-                </span>
-                <span className="chip"><i className="dot dot-green" />Resolved <strong>{cur.resolved}</strong> this month</span>
-              </div>
-              <Suspense fallback={chartFallback}><TrendChart stats={stats} /></Suspense>
-            </div>
-            <div className="card chart-card"><h2>Status distribution</h2><p className="muted small chart-sub">All complaints</p><Suspense fallback={chartFallback}><StatusChart stats={stats} /></Suspense></div>
-          </section>
-          <section className="charts">
-            <div className="card chart-card"><h2>Category distribution</h2><p className="muted small chart-sub">Complaints per category</p><Suspense fallback={chartFallback}><CategoryChart stats={stats} /></Suspense></div>
-            <div className="card chart-card">
-              <div className="section-head"><h2><Icon name="flag" size={18} className="ic-high" /> High-priority open issues</h2></div>
-              <MiniList items={urgent} base={base} empty="No open high-priority issues. Nice work!" />
-            </div>
-          </section>
-          <section className="card recent">
-            <div className="section-head"><h2>Recent complaints</h2><Link className="link" to={`${base}/complaints`}>Manage all complaints →</Link></div>
-            <MiniList items={recent} base={base} empty="No complaints yet." />
-          </section>
-        </>
+      {urgent.length > 0 && (
+        <section className="card recent">
+          <div className="section-head"><h2><Icon name="flag" size={18} className="ic-high" /> High-priority open issues</h2><Link className="link" to={`${base}/complaints`}>Complaints &amp; Issues →</Link></div>
+          <MiniList items={urgent} base={base} empty="No open high-priority issues." />
+        </section>
       )}
     </>
   );

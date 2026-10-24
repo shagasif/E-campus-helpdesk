@@ -1,10 +1,7 @@
 import type { Category, Complaint, Priority, Status } from '../types/complaint';
 
 const DAY = 86_400_000;
-
-// How many sample complaints are created, and how many days ago each one was reported.
-export const SAMPLE_COUNT = 7;
-const AGES_IN_DAYS = [0.3, 2, 6, 14, 28, 45, 70];
+export const DEMO_COUNT = 7; // number of labelled sample complaints
 
 // [category, title, description]
 const TEMPLATES: [Category, string, string][] = [
@@ -16,32 +13,34 @@ const TEMPLATES: [Category, string, string][] = [
   ['internet_network', 'No internet in the lab', 'There is no internet connection on the lab computers.'],
   ['electrical', 'Tube lights not working', 'Two tube lights are not working and the area is dark.'],
   ['electrical', 'Power socket not working', 'The power socket near the desk has no electricity.'],
-  ['ac_ventilation', 'Air conditioner not cooling', 'The air conditioner runs but the room does not get cool.'],
-  ['ac_ventilation', 'Ceiling fan makes a loud noise', 'The ceiling fan makes a loud rattling noise at medium speed.'],
+  ['water_plumbing', 'Water tap leaking in washroom', 'The tap keeps dripping and water collects on the floor.'],
+  ['electrical', 'Ceiling fan makes a loud noise', 'The ceiling fan makes a loud rattling noise at medium speed.'],
   ['furniture_classroom', 'Broken chair in classroom', 'One of the chairs has a broken leg and is unsafe to use.'],
   ['furniture_classroom', 'Whiteboard surface damaged', 'The whiteboard is scratched and the marker will not wipe off.'],
   ['building_maintenance', 'Water leaking from ceiling', 'Water drips from the ceiling when it rains.'],
   ['building_maintenance', 'Door lock is stuck', 'The classroom door lock is stuck and the door cannot be locked.'],
   ['cleanliness_sanitation', 'Washroom needs cleaning', 'The washroom has not been cleaned and needs urgent attention.'],
-  ['cleanliness_sanitation', 'Dustbins overflowing', 'The dustbins near the cafeteria are overflowing.'],
+  ['canteen', 'Dustbins overflowing at the cafeteria', 'The dustbins near the cafeteria are overflowing.'],
+  ['parking_transport', 'Parking area light not working', 'The parking area is dark in the evening because a light is out.'],
   ['safety_security', 'Fire extinguisher missing', 'The fire extinguisher is missing from its stand in the corridor.'],
   ['other', 'Notice board needs to be moved', 'The notice board blocks the corridor and should be moved.'],
 ];
 const PLACES: [string, string][] = [['Block A', 'Room 101'], ['Block B', 'Lab 2'], ['Library', '2nd Floor'], ['Block C', 'Seminar Hall'], ['Block A', 'Room 14'], ['Block B', 'Room 305']];
 const TEAM: Record<Category, string> = {
   computer_hardware: 'IT Support', projector_av: 'AV / Classroom Tech', internet_network: 'Network Team', electrical: 'Electrical Team',
-  ac_ventilation: 'Facilities & Maintenance', furniture_classroom: 'Facilities & Maintenance', building_maintenance: 'Facilities & Maintenance',
-  cleanliness_sanitation: 'Facilities & Maintenance', safety_security: 'Facilities & Maintenance', other: 'Facilities & Maintenance',
+  building_maintenance: 'Facilities & Maintenance', water_plumbing: 'Facilities & Maintenance', cleanliness_sanitation: 'Facilities & Maintenance',
+  canteen: 'Facilities & Maintenance', furniture_classroom: 'Facilities & Maintenance', parking_transport: 'Facilities & Maintenance',
+  safety_security: 'Facilities & Maintenance', other: 'Facilities & Maintenance',
 };
 const PRIORITY_CYCLE: Priority[] = ['high', 'medium', 'low', 'medium', 'high', 'medium', 'low'];
 
 /** Clearly-labelled SAMPLE records so the dashboards have something to show. They are not real campus reports. */
 export function makeDemoComplaints(): Complaint[] {
   const now = Date.now();
-  return Array.from({ length: SAMPLE_COUNT }, (_, i) => {
+  return Array.from({ length: DEMO_COUNT }, (_, i) => {
     const [category, title, description] = TEMPLATES[(i * 5) % TEMPLATES.length];
     const [building, room] = PLACES[i % PLACES.length];
-    const ageDays = AGES_IN_DAYS[i];
+    const ageDays = i < 6 ? i * 0.7 + 0.2 : i * 5.6 + 1;
     const createdAt = new Date(now - ageDays * DAY).toISOString();
     let status: Status = (['pending', 'in_progress', 'resolved', 'resolved'] as Status[])[i % 4];
     if (ageDays > 60) status = i % 6 === 0 ? 'in_progress' : 'resolved';

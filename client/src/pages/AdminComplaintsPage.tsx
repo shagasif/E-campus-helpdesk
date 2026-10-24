@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useComplaints } from '../context/ComplaintsContext';
 import { useToast } from '../context/ToastContext';
@@ -13,6 +13,16 @@ import { Pagination } from '../components/Pagination';
 import { ComplaintDrawer } from '../components/ComplaintDrawer';
 import { complaintsToCsv, downloadCsv } from '../utils/csv';
 import { formatDate } from '../utils/format';
+import { RequestStats } from '../components/RequestStats';
+import { Skeleton } from '../components/Skeleton';
+import { buildRows } from '../utils/unifiedRequests';
+import { computeStats } from '../utils/complaintStats';
+
+// Charts download on demand.
+const TrendChart = lazy(() => import('../components/charts').then((m) => ({ default: m.TrendChart })));
+const StatusChart = lazy(() => import('../components/charts').then((m) => ({ default: m.StatusChart })));
+const CategoryChart = lazy(() => import('../components/charts').then((m) => ({ default: m.CategoryChart })));
+const chartFallback = <div role="status" aria-label="Loading chart"><Skeleton height={220} /></div>;
 
 type SortKey = 'id' | 'title' | 'category' | 'priority' | 'status' | 'createdAt';
 type Sort = { key: SortKey; dir: 'asc' | 'desc' };
@@ -96,6 +106,8 @@ export function AdminComplaintsPage() {
       toast('The CSV file could not be created. Please try again.', 'error');
     }
   }
+  const statRows = useMemo(() => buildRows(complaints, [], '/admin'), [complaints]);
+  const chartStats = useMemo(() => computeStats(complaints, 6), [complaints]);
   const onFilter = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1); };
 
   const sortTh = (label: string, key: SortKey) => {
@@ -114,11 +126,23 @@ export function AdminComplaintsPage() {
     <>
       <header className="page-head page-head-row">
         <div>
-          <h1>Complaints</h1>
+          <h1>Complaints &amp; Issues</h1>
           <p className="muted">{filtering ? `${filtered.length} of ${complaints.length}` : complaints.length} complaint{complaints.length === 1 ? '' : 's'}{filtering ? ' match your filters' : ' in this browser'}.</p>
         </div>
         <button type="button" className="btn btn-secondary" onClick={exportCsv} disabled={filtered.length === 0}><Icon name="download" size={18} /> Export CSV</button>
       </header>
+
+      <RequestStats rows={statRows} openLabel="Pending" />
+      {complaints.length > 0 && (
+        <details className="card charts-details">
+          <summary>Charts: status, category and monthly trend</summary>
+          <div className="charts-grid">
+            <div><h3>Status distribution</h3><Suspense fallback={chartFallback}><StatusChart stats={chartStats} /></Suspense></div>
+            <div><h3>Category distribution</h3><Suspense fallback={chartFallback}><CategoryChart stats={chartStats} /></Suspense></div>
+            <div className="span-2"><h3>Monthly trend (last 6 months)</h3><Suspense fallback={chartFallback}><TrendChart stats={chartStats} /></Suspense></div>
+          </div>
+        </details>
+      )}
 
       <div className="card filters">
         <div className="search filters-search">

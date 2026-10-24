@@ -9,6 +9,36 @@ A campus issue reporting web app built as a learning project. Students and staff
 
 ---
 
+## What's new in this version (Part 1: user side, Part 2: admin side)
+
+- **Report a Problem** now has 12 categories (IT, classroom equipment, Wi-Fi, electricity/fans/lights, building, water and plumbing, washrooms, canteen, furniture, parking and transport, safety, other) and optional **Campus** and **Affected area or department** fields. The AI summary can be edited before submitting. Older saved complaints are upgraded automatically (the old AC/fan category becomes Electricity, Fans and Lights).
+- **Request Help** (new): academic support, registration and timetable, exams and results, student records and portal, fees and scholarships, IT account, administrative help, other. Reference `HLP-YYYYMMDD-XXXX`.
+- **Applications & Services** (new): staff leave, student leave, certificate/document request, ID card request, equipment or access request, HR query, other application. The form changes with the type. Reference `APP-YYYYMMDD-XXXX`. Leave types, certificate types and rules are examples in `client/src/utils/requestConfig.ts` and must be confirmed with the university. Nothing is approved automatically, and file uploads are not supported.
+- **My Requests** (new) replaces My Complaints: problem reports, help requests and applications in one list, with search, type filter, status filter and a details page for each. Old `/user/complaints` links redirect here.
+- **User dashboard** now shows Open Requests, In Progress, Awaiting Response and Completed (counted from your own records) and a Recent Requests table. Dashboard counting rules are written in `client/src/utils/unifiedRequests.ts`.
+- Help requests and applications are stored in the same browser storage as complaints (key `campus-issue-reporting:requests:v1`), so they have the same limits: not shared, not sent to any office.
+- Sidebar: the brand icon is now a campus (graduation cap) icon, and the sample set is 7 complaints.
+
+### Landing page and sign in
+
+- The site now opens on a **landing page** (campus photo hero, features, how it works, who it is for, FAQ). One **Sign In / Register** button opens an overlay with Sign In and Register tabs. Sign In has Student, Staff / Faculty and Admin options; Student and Staff / Faculty both open the user dashboard, Admin opens the admin dashboard. After signing in, the dashboard opens. `/login` opens the same page with the overlay already open.
+- The hero has no chart or preview; its photo fades softly into the next section so there is no visible line between them.
+- Light mode now uses soft off-white surfaces instead of pure white.
+
+### Part 2: admin side
+
+- **Admin sidebar:** Dashboard, All Requests, Complaints & Issues, Help Requests, Applications, Users, Teams, Reports & Analytics, Settings. On phones the bottom bar scrolls sideways.
+- **All Requests / Help Requests / Applications:** one list with search, type, category, status group and date filters, sorting, pagination, CSV export, and the submitter and department for each row.
+- **Request details (admin):** assign to a team or office, move the status along the allowed workflow, add a **public reply** (the requester sees it) or a **private internal note** (the requester never sees it). Approved, Rejected and More Information Required need a message. Nothing is approved automatically.
+- **Users reply:** when staff ask for more information, the requester can reply on the request page, and it goes back to Under Review.
+- **Reopen:** a user can reopen their own resolved complaint with a reason; it returns to Pending and the timeline shows it.
+- **Admin dashboard:** new cards for all requests (Total, Open, In Progress, Resolved) and a Latest requests list, above the existing complaint charts.
+- **Users, Teams, Reports, Settings:** users come from the accounts saved in this browser (no passwords shown); teams show assigned workload and are placeholders in the code; reports are calculated from saved records with a date range and CSV export; settings only holds options that really work.
+
+**Limits:** everything is localStorage in one browser, so an admin only sees requests created in that same browser. No file attachments, email notifications, real staff accounts or role permissions. Team and office names are placeholders in `client/src/types/complaint.ts` and `client/src/utils/requestConfig.ts`.
+
+---
+
 ## Quick Start (VS Code)
 
 1. **Install Node.js** (LTS) from https://nodejs.org, then check `node -v` and `npm -v`.
@@ -23,8 +53,8 @@ A campus issue reporting web app built as a learning project. Students and staff
 
 | Role | How to sign in |
 |---|---|
-| **User** | *User Login* tab → **Create account** (full name, email, Student or Staff / Faculty, department, password). You are sent back to the login page; sign in with that email and password. |
-| **Admin** | *Admin Login* tab → `admin@campus.edu` / `Admin@123`. Change these two values in `client/src/utils/accounts.ts` (`ADMIN_EMAIL`, `ADMIN_PASSWORD`). The admin can also change the password on the Profile page; to go back to the original, clear the site's localStorage (this also removes saved complaints and accounts). |
+| **User** | **Sign In / Register** → **Register** tab (full name, email, Student or Staff / Faculty, department, password). You are sent back to Sign In; sign in with that email and password. |
+| **Admin** | **Sign In / Register** → choose **Admin** → `admin@campus.edu` / `Admin@123`. Change these two values in `client/src/utils/accounts.ts` (`ADMIN_EMAIL`, `ADMIN_PASSWORD`). The admin can also change the password on the Profile page; to go back to the original, clear the site's localStorage (this also removes saved complaints and accounts). |
 
 **Commands**
 
@@ -82,7 +112,7 @@ The six original requirements, and where each one lives:
 
 | # | Requirement | Status |
 |---|---|---|
-| 1 | Users can report issues in the supported categories | ✅ Report an Issue form, 10 categories (see Screen 2) |
+| 1 | Users can report issues in the supported categories | ✅ Report a Problem form, 12 categories (see Screen 2) |
 | 2 | Complaints with descriptions and optional pictures | ✅ Description (required) + photo (optional, with preview) |
 | 3 | Track status: Pending, In Progress, Resolved | ✅ Status badges, status timeline, user details page |
 | 4 | Admin dashboard can manage complaints | ✅ Complaints table + detail drawer (status, priority, assignment, resolution note) |
@@ -142,32 +172,29 @@ Gemini is called **only from the backend**, never from the browser.
 
 ## Design System
 
-A bright, spacious, premium look: cream and white surfaces, golden-yellow actions, and dark maroon used for the sidebar and small brand accents.
+Two themes, **light (default)** and **dark**, switched with the Light mode / Dark mode button in the sidebar (a round button in the landing page bar). The choice is remembered in the browser. No gradients are used. All colors and fonts are tokens at the top of `client/src/styles/app.css`.
 
-| Token | Value |
-|---|---|
-| White | `#FFFFFF` |
-| Cream background | `#FFFDF8` |
-| Soft cream | `#FFF8E8` |
-| Gold yellow (primary buttons, highlights) | `#FACC15` |
-| Light gold | `#FEF3C7` |
-| Maroon (sidebar, logo, accents) | `#5B1020` |
-| Deep maroon | `#3B0914` |
-| Primary text | `#1F2937` |
-| Secondary text | `#6B7280` |
-| Resolved | `#16A34A` |
-| Pending | `#F59E0B` |
-| In Progress | `#2563EB` |
-| Priority | High `#DC2626`, Medium `#D97706`, Low grey |
+| Token | Dark | Light |
+|---|---|---|
+| Page background | `#141414` | `#F3F5F6` |
+| Cards | `#232323` | `#FFFFFF` |
+| Sidebar | `#1C1C1C` | `#222222` |
+| Accent (buttons, highlights) | `#89D9F2` | `#89D9F2` |
+| Accent as text or link | `#89D9F2` | `#0B6B86` |
+| Primary text | `#FFFFFF` | `#141414` |
+| Secondary text | `#A3A3A8` | `#5A656D` |
+| Resolved / Pending / In Progress | `#4ADE80` / `#F5B54A` / `#6AA9F5` | `#15803D` / `#B45309` / `#1D6FB8` |
 
-**Login page:** campus photo background with a dark maroon gradient, light text on the left, a pure-white login card, gold **Sign In** button, floating golden particles and a slow background zoom (all motion stops when the user's system asks for reduced motion). Measured text contrast on the login page is at least 10:1.
+**Fonts:** Sora for headings and numbers, Plus Jakarta Sans for body text, loaded from Google Fonts with the system font as a fallback. They are free alternatives to Atyp Display, which is a paid font.
+
+**Landing page and sign in:** campus photo hero under a solid dark overlay with a dotted grid and thin ring shapes, a glass navigation bar, a hero that fades smoothly into the next section, themed cards, and the Sign In / Register overlay. No gradients except the soft fade at the bottom of the hero photo. Cards and surfaces use the theme tokens, so light and dark both work.
 
 ### Visual principles
 
-- Generous white space; most pages are white or cream.
-- Slim dark-maroon sidebar with white labels and a gold active state.
+- Generous space; flat surfaces, no gradients.
+- Slim dark sidebar with white labels and a light-blue active state.
 - White cards with subtle borders, rounded corners and soft shadows.
-- Yellow for primary actions; maroon only for the sidebar, logo and small accents.
+- Light blue for primary actions and highlights.
 - Consistent Lucide icons; every category has its own icon.
 - Clear typography hierarchy, readable forms and tables, labelled status badges and priority flags.
 - Visible keyboard focus, proper labels and `aria-` attributes, errors announced to screen readers.
@@ -178,19 +205,19 @@ A bright, spacious, premium look: cream and white surfaces, golden-yellow action
 
 ## Application Screens
 
-Roles: **User** (own complaints only) and **Admin** (everything). A signed-out visitor is sent to the login page, and each role is kept out of the other role's pages. At the bottom of the sidebar, the name and photo open the **Profile** page (click or tap); **Sign out** is below it. Profile lets both roles edit their details and photo, change their password and see their own activity. The email is the sign-in ID and cannot be changed.
+Roles: **User** (own complaints only) and **Admin** (everything). A signed-out visitor sees the landing page (Sign In / Register opens the overlay), and each role is kept out of the other role's pages. At the bottom of the sidebar, the name and photo (with an up arrow) open a small menu with **Profile**, **Settings** (admin only has a separate Settings page; for users it opens Profile, where details and password are edited), **Light / Dark mode** and **Sign out**. Profile lets both roles edit their details and photo, change their password and see their own activity. The email is the sign-in ID and cannot be changed.
 
 ### Screen 1: Admin Dashboard
 
 - Cards: **Total**, **Pending**, **In Progress**, **Resolved**, **Resolution Rate**.
 - **Monthly complaint trend** area chart (reported vs resolved) with a 6 / 12 months switch and "this month vs last month" chips.
-- **Status distribution** donut chart and **Category distribution** bar chart (all 10 categories).
+- **Status distribution** donut chart and **Category distribution** bar chart (all 12 categories).
 - **High-priority open issues** and **Recent complaints** lists; each item opens the detail drawer.
 - Link to manage all complaints.
 - Every number and chart is calculated from the saved complaint records, not hard-coded.
 - 7 clearly labelled **Sample** complaints are loaded the first time so the dashboard has something to show. They are not real reports; the admin can remove them with **Remove sample data**.
 
-### Screen 2: Report an Issue
+### Screen 2: Report a Problem
 
 - **Issue title**, **Category** (Computer & Hardware, Projector & AV Equipment, Internet & Network, Electrical Issues, Air Conditioning & Ventilation, Furniture & Classroom, Building & Maintenance, Cleanliness & Sanitation, Safety & Security, Other), **Building**, **Room / location**, **Description**.
 - Optional **photo** with preview, **Replace** and **Remove**.
@@ -217,7 +244,7 @@ Roles: **User** (own complaints only) and **Admin** (everything). A signed-out v
   - Pagination (10 / 25 / 50 per page).
   - **Export CSV** of the filtered results.
   - Shows a useful empty state and **Clear filters**.
-- **User ("My Complaints")**
+- **User ("My Requests")**
   - Own complaints only, with search and status filter, pagination, and **Download CSV**.
 - Tables turn into stacked cards on phones.
 - Columns include complaint ID, title, category, location, submitted date, priority and status.
@@ -238,11 +265,11 @@ Checked in a browser at these widths:
 - Tablet: 768 px
 - Desktop: 1440 px
 
-The login page, both dashboards, lists, forms, the drawer and the profile page showed **no horizontal scrolling** in an automated check at all three widths. Main buttons are at least 44 px high, forms fit the screen, charts resize, and long category names are shortened on phones (the full name is shown on hover or tap).
+The landing page, both dashboards, lists, forms, the drawer and the profile page showed **no horizontal scrolling** in an automated check at all three widths. Main buttons are at least 44 px high, forms fit the screen, charts resize, and long category names are shortened on phones (the full name is shown on hover or tap).
 
 ### Screen 5: Responsive Navigation
 
-- **Desktop:** slim maroon sidebar. User: Dashboard, Report an Issue, My Complaints. Admin: Dashboard, Complaints. Name/photo (opens Profile) and **Sign out** sit at the bottom.
+- **Desktop:** slim dark sidebar. User: Dashboard, Report a Problem, Request Help, Applications & Services, My Requests. Admin: Dashboard, All Requests, Complaints & Issues, Help Requests, Applications, Users, Teams, Reports & Analytics, Settings. Name/photo (opens Profile) and **Sign out** sit at the bottom.
 - **Phone:** the sidebar becomes a bottom bar with the same menu items, a round photo that opens Profile, and **Sign out**.
 
 ---
@@ -262,7 +289,7 @@ campus-issue-reporting/
 │   │   │   ├── Avatar.tsx
 │   │   │   ├── ComplaintForm.tsx    # report form, photo, AI summary
 │   │   │   ├── ComplaintDrawer.tsx  # admin detail + manage panel
-│   │   │   ├── UserComplaintsList.tsx
+│   │   │   ├── RequestsTable.tsx, RequestSuccessCard.tsx
 │   │   │   ├── StatCard.tsx, StatusBadge.tsx, StatusTimeline.tsx
 │   │   │   ├── AiSummaryBox.tsx     # Generate AI Summary
 │   │   │   ├── Pagination.tsx, EmptyState.tsx, Skeleton.tsx, ErrorBoundary.tsx
@@ -271,9 +298,12 @@ campus-issue-reporting/
 │   │   │   └── charts/index.tsx     # trend, status and category charts
 │   │   ├── pages/
 │   │   │   ├── LoginPage.tsx        # sign in + create account
-│   │   │   ├── UserDashboardPage.tsx, UserComplaintsPage.tsx
+│   │   │   ├── UserDashboardPage.tsx, MyRequestsPage.tsx, RequestDetailsPage.tsx
+│   │   │   ├── RequestHelpPage.tsx, ApplicationsPage.tsx
 │   │   │   ├── ReportIssuePage.tsx, ComplaintDetailsPage.tsx
 │   │   │   ├── AdminDashboardPage.tsx, AdminComplaintsPage.tsx
+│   │   │   ├── AdminRequestsPage.tsx, AdminRequestDetailsPage.tsx
+│   │   │   ├── AdminUsersPage.tsx, AdminTeamsPage.tsx, AdminReportsPage.tsx, AdminSettingsPage.tsx
 │   │   │   └── ProfilePage.tsx
 │   │   ├── context/
 │   │   │   ├── ComplaintsContext.tsx  # single source of truth for complaints
@@ -380,7 +410,7 @@ The rules this project follows, and how:
 
 | Criterion | Status |
 |---|---|
-| All issue categories available | ✅ 10 categories (replaces the original five) |
+| All issue categories available | ✅ 12 campus categories |
 | Users can submit descriptions and optional pictures | ✅ |
 | Validation works with useful feedback | ✅ |
 | Each complaint gets a unique reference | ✅ `CIR-YYYYMMDD-XXXX` |

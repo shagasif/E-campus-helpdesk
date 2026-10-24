@@ -80,6 +80,8 @@ export function ComplaintDrawer({ complaint: c, onClose }: { complaint: Complain
           <dl className="info-grid">
             <div><dt>Category</dt><dd><span className="cat"><CategoryIcon category={c.category} size={16} />{CATEGORY_LABELS[c.category]}</span></dd></div>
             <div><dt>Location</dt><dd>{locationText(c)}</dd></div>
+            {c.campus && <div><dt>Campus</dt><dd>{c.campus}</dd></div>}
+            {c.area && <div><dt>Affected area</dt><dd>{c.area}</dd></div>}
             <div><dt>Submitted</dt><dd>{formatDateTime(c.createdAt)}</dd></div>
             <div><dt>Reported by</dt><dd>{c.submittedBy ?? '—'}</dd></div>
             <div><dt>Assigned to</dt><dd>{c.assignedTo ?? 'Unassigned'}</dd></div>
