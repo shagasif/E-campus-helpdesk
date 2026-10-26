@@ -3,6 +3,8 @@ import type { Category, Complaint, Priority, Status } from '../types/complaint';
 import { loadComplaints, saveComplaints } from '../utils/complaintStorage';
 import { DEMO_COUNT, makeDemoComplaints } from '../utils/demoData';
 import { useAuth } from './AuthContext';
+import { cloudEnabled } from '../utils/supabase';
+import { fetchComplaints, fetchDirectory, insertComplaint, reopenComplaintRemote, saveComplaintAdmin, setAiSummaryRemote } from '../utils/cloud';
 
 export interface ComplaintPatch {
   status?: Status;
@@ -39,7 +41,11 @@ function makeReference(existing: Complaint[]): string {
 }
 
 export function ComplaintsProvider({ children }: { children: ReactNode }) {
+  const { session } = useAuth();
+  const uid = session?.id;
+  const isAdmin = session?.role === 'admin';
   const [initial] = useState(() => {
+    if (cloudEnabled) return { complaints: [] as Complaint[], warning: null as string | null }; // loaded from Supabase after sign-in
     const result = loadComplaints();
     // Sample complaints saved by older versions beyond the current sample set are dropped.
     const kept = result.complaints.filter((c) => !(c.isDemo && /^SAMPLE-\d+$/.test(c.id) && Number(c.id.slice(7)) > DEMO_COUNT));
@@ -51,8 +57,9 @@ export function ComplaintsProvider({ children }: { children: ReactNode }) {
   const latest = useRef(complaints);
   latest.current = complaints;
 
-  // Save every change to localStorage.
+  // Save every change to localStorage (without Supabase).
   useEffect(() => {
+    if (cloudEnabled) return;
     const err = saveComplaints(complaints);
     setWarning((prev) => err ?? (prev && prev.startsWith('Could not save') ? null : prev));
   }, [complaints]);
@@ -61,6 +68,38 @@ export function ComplaintsProvider({ children }: { children: ReactNode }) {
     latest.current = next;
     setComplaints(next);
   }, []);
+
+  // ---- Supabase: load what this person may see, and refresh when they come back to the tab ----
+  const reload = useCallback(async () => {
+    try {
+      if (isAdmin) await fetchDirectory();
+      commit(await fetchComplaints());
+      setWarning((prev) => (prev && prev.startsWith('Could not load') ? null : prev));
+    } catch (e) {
+      setWarning(`Could not load complaints from the server: ${(e as Error).message}`);
+    }
+  }, [isAdmin, commit]);
+
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    if (!uid) { commit([]); return; }
+    void reload();
+    const onVisible = () => { if (document.visibilityState === 'visible') void reload(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [uid, reload, commit]);
+
+  /** Sends one change to the server. If the server refuses, the page shows why and loads the real data again. */
+  const sync = useCallback((job: Promise<unknown>) => {
+    if (!cloudEnabled) return;
+    job.then(
+      () => setWarning((prev) => (prev && prev.startsWith('Could not save to the server') ? null : prev)),
+      (e: Error) => {
+        setWarning(`Could not save to the server: ${e.message}`);
+        void reload();
+      },
+    );
+  }, [reload]);
 
   const addComplaint: ComplaintsValue['addComplaint'] = useCallback((input) => {
     const now = new Date().toISOString();
@@ -82,8 +121,9 @@ export function ComplaintsProvider({ children }: { children: ReactNode }) {
       createdAt: now,
     };
     commit([complaint, ...latest.current]);
+    if (cloudEnabled) sync(insertComplaint(complaint));
     return complaint;
-  }, [commit]);
+  }, [commit, sync]);
 
   const updateComplaint: ComplaintsValue['updateComplaint'] = useCallback((id, patch, by) => {
     const current = latest.current.find((c) => c.id === id);
@@ -114,12 +154,14 @@ export function ComplaintsProvider({ children }: { children: ReactNode }) {
       next.history = current.history.map((e, i, a) => (i === a.length - 1 && e.status === 'resolved' ? { ...e, note } : e));
     }
     commit(latest.current.map((c) => (c.id === id ? next : c)));
+    if (cloudEnabled) sync(saveComplaintAdmin(next));
     return { ok: true };
-  }, [commit]);
+  }, [commit, sync]);
 
   const setAiSummary = useCallback((id: string, summary: string) => {
     commit(latest.current.map((c) => (c.id === id ? { ...c, aiSummary: summary } : c)));
-  }, [commit]);
+    if (cloudEnabled) sync(setAiSummaryRemote(id, summary));
+  }, [commit, sync]);
 
   const reopenComplaint: ComplaintsValue['reopenComplaint'] = useCallback((id, by, reason) => {
     const current = latest.current.find((c) => c.id === id);
@@ -137,8 +179,9 @@ export function ComplaintsProvider({ children }: { children: ReactNode }) {
       history: [...current.history, { status: 'pending', at: now, by, note: `Reopened: ${text}` }],
     };
     commit(latest.current.map((c) => (c.id === id ? next : c)));
+    if (cloudEnabled) sync(reopenComplaintRemote(id, text));
     return { ok: true };
-  }, [commit]);
+  }, [commit, sync]);
 
   const removeDemoData = useCallback(() => {
     commit(latest.current.filter((c) => !c.isDemo));

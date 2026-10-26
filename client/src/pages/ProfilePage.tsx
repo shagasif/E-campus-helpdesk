@@ -1,13 +1,15 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { displayName, useAuth } from '../context/AuthContext';
 import { useComplaints, useVisibleComplaints } from '../context/ComplaintsContext';
 import { useToast } from '../context/ToastContext';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
 import { computeStats } from '../utils/complaintStats';
-import { changeAdminPassword, changeUserPassword, findAccount, updateAccount, updateAdminProfile, USER_TYPE_LABELS, type UserType } from '../utils/accounts';
+import { USER_TYPE_LABELS, type UserType } from '../utils/accounts';
+import { changePassword as changePasswordApi, saveProfile as saveProfileApi } from '../utils/authApi';
 import { imageToDataUrl, validateImage } from '../utils/image';
 import { formatDate } from '../utils/format';
+import { cloudEnabled } from '../utils/supabase';
 
 /** Profile for both roles: personal details, photo, password, and the person's own activity. */
 export function ProfilePage() {
@@ -17,7 +19,6 @@ export function ProfilePage() {
   const mine = useVisibleComplaints();
   const isAdmin = session?.role === 'admin';
   const email = session?.id ?? '';
-  const account = useMemo(() => (isAdmin ? undefined : findAccount(email)), [isAdmin, email]);
 
   // ---- personal information ----
   const [name, setName] = useState(session?.name ?? '');
@@ -47,8 +48,11 @@ export function ProfilePage() {
     }
   }
 
-  function saveProfile(e: FormEvent) {
+  const [saving, setSaving] = useState(false);
+
+  async function saveProfile(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     const next: typeof errors = {};
     if (!name.trim()) next.name = isAdmin ? 'Please enter a display name.' : 'Please enter your full name.';
     if (!isAdmin && !userType) next.userType = 'Please choose Student or Staff / Faculty.';
@@ -56,17 +60,15 @@ export function ProfilePage() {
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    if (isAdmin) {
-      const saved = updateAdminProfile({ name, department, photo: photo ?? null });
-      if (!saved) { toast('Your changes could not be saved (browser storage is blocked).', 'error'); return; }
-      updateProfile({ name: saved.name, department: saved.department, photo: saved.photo });
-    } else {
-      if (!account) { toast('No saved account was found for this email. Please sign out and create an account.', 'error'); return; }
-      const saved = updateAccount(email, { name, userType: userType || undefined, department, photo: photo ?? null });
-      if (!saved) { toast('Your changes could not be saved (browser storage is blocked).', 'error'); return; }
-      updateProfile({ name: saved.name, userType: saved.userType, department: saved.department, photo: saved.photo });
+    setSaving(true);
+    try {
+      const r = await saveProfileApi(email, isAdmin, { name, userType: userType || undefined, department, photo });
+      if (!r.ok) { toast(r.error, 'error'); return; }
+      updateProfile({ name: r.profile.name, userType: r.profile.userType, department: r.profile.department, photo: r.profile.photo });
+      toast('Profile updated.');
+    } finally {
+      setSaving(false);
     }
-    toast('Profile updated.');
   }
 
   function resetProfile() {
@@ -93,7 +95,7 @@ export function ProfilePage() {
     if (Object.keys(next).length > 0) return;
     setPwBusy(true);
     try {
-      const result = isAdmin ? await changeAdminPassword(pw.current, pw.next) : await changeUserPassword(email, pw.current, pw.next);
+      const result = await changePasswordApi(email, isAdmin, pw.current, pw.next);
       if (!result.ok) { setPwErrors({ current: result.error }); return; }
       setPw({ current: '', next: '', confirm: '' });
       setShowPw(false);
@@ -143,7 +145,7 @@ export function ProfilePage() {
               </button>
               {photo && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPhoto(undefined)}><Icon name="x" size={14} /> Remove</button>}
             </div>
-            <p className="muted small">JPG, PNG or WebP, up to 5 MB. Kept only in this browser.</p>
+            <p className="muted small">JPG, PNG or WebP, up to 5 MB. {cloudEnabled ? 'Saved with your account.' : 'Kept only in this browser.'}</p>
             {errors.photo && <p className="field-error" role="alert">{errors.photo}</p>}
           </div>
 
@@ -178,7 +180,7 @@ export function ProfilePage() {
           </div>
 
           <div className="row">
-            <button type="submit" className="btn btn-primary" disabled={!dirty || processing}>Save changes</button>
+            <button type="submit" className="btn btn-primary" disabled={!dirty || processing || saving}>{saving ? 'Saving…' : 'Save changes'}</button>
             <button type="button" className="btn btn-secondary" onClick={resetProfile} disabled={!dirty}>Reset</button>
           </div>
         </form>
@@ -223,7 +225,7 @@ export function ProfilePage() {
                   <div><dt>Pending</dt><dd>{stats.pending}</dd></div>
                   <div><dt>In Progress</dt><dd>{stats.in_progress}</dd></div>
                   <div><dt>Resolved</dt><dd>{stats.resolved}</dd></div>
-                  {account && <div><dt>Member since</dt><dd>{formatDate(account.createdAt)}</dd></div>}
+                  {session?.createdAt && <div><dt>Member since</dt><dd>{formatDate(session.createdAt)}</dd></div>}
                 </>
               )}
             </dl>

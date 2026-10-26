@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Icon } from './Icon';
-import { createAccount, loadAdminProfile, resetUserPassword, USER_TYPE_LABELS, verifyAdmin, verifyUser, type UserType } from '../utils/accounts';
+import { USER_TYPE_LABELS, type UserType } from '../utils/accounts';
+import { cloudEnabled, completeRecovery, resetLocalPassword, sendResetLink, signIn, signOutEverywhere, signUp } from '../utils/authApi';
 
 type Chip = UserType | 'admin';
 const CHIPS: { key: Chip; label: string }[] = [
@@ -17,10 +18,10 @@ type SignupForm = { name: string; email: string; userType: UserType | ''; depart
 const EMPTY_SIGNUP: SignupForm = { name: '', email: '', userType: '', department: '', password: '', confirm: '' };
 
 /** Sign in / Register overlay. Signing in sets the session, and the landing page then opens the right dashboard. */
-export function AuthModal({ onClose }: { onClose: () => void }) {
-  const { login } = useAuth();
+export function AuthModal({ onClose, startMode }: { onClose: () => void; startMode?: 'recover' }) {
+  const { login, clearRecovery } = useAuth();
   const { toast } = useToast();
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'recover'>(startMode ?? 'signin');
   const [chip, setChip] = useState<Chip>('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +36,9 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   const [fg, setFg] = useState({ email: '', name: '', department: '', password: '', confirm: '' });
   const [fgErrors, setFgErrors] = useState<Partial<Record<keyof typeof EMPTY_FG, string>>>({});
   const [fgError, setFgError] = useState<string | null>(null);
+  const [fgSent, setFgSent] = useState(false);
+  const [rc, setRc] = useState({ password: '', confirm: '' });
+  const [rcError, setRcError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +56,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   function pickChip(c: Chip) { setChip(c); setErrors({}); setFormError(null); setCreated(null); }
 
   function switchMode(m: 'signin' | 'signup' | 'forgot') {
+    setFgSent(false);
     setMode(m); setErrors({}); setSuErrors({}); setFgErrors({}); setFgError(null); setFormError(null); setCreated(null); setShow(false);
     if (m === 'signup') { if (chip === 'admin') setChip('student'); setSu((v) => ({ ...v, userType: v.userType || (chip === 'admin' ? 'student' : chip) })); }
   }
@@ -69,23 +74,14 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
     const address = email.trim().toLowerCase();
     setBusy(true);
     try {
-      if (chip === 'admin') {
-        if (!(await verifyAdmin(address, password))) { setFormError('Incorrect email or password.'); return; }
-        const p = loadAdminProfile();
-        login('admin', address, { name: p.name, department: p.department, photo: p.photo });
-        return;
-      }
-      const result = await verifyUser(address, password);
-      if (!result.ok) {
-        setFormError(result.reason === 'no_account' ? 'No account found for this email. Please register first.' : 'Incorrect password. Please try again.');
-        return;
-      }
-      const { account } = result;
-      if (account.userType !== chip) {
-        setFormError(`This account is registered as ${USER_TYPE_LABELS[account.userType]}. Choose that option to sign in.`);
-        return;
-      }
-      login('user', account.email, { name: account.name, userType: account.userType, department: account.department, photo: account.photo });
+      const r = await signIn(address, password);
+      if (!r.ok) { setFormError(r.error); return; }
+      const p = r.profile;
+      // The options (Student, Staff, Admin) must match the account, so nobody signs in to the wrong dashboard by accident.
+      if (chip === 'admin' && p.role !== 'admin') { await signOutEverywhere(); setFormError('This account is not an administrator. Choose Student or Staff / Faculty.'); return; }
+      if (chip !== 'admin' && p.role === 'admin') { await signOutEverywhere(); setFormError('This is an administrator account. Choose Admin to sign in.'); return; }
+      if (p.role === 'user' && p.userType && p.userType !== chip) { await signOutEverywhere(); setFormError(`This account is registered as ${USER_TYPE_LABELS[p.userType]}. Choose that option to sign in.`); return; }
+      login(p.role, p.email, { name: p.name, userType: p.userType, department: p.department, photo: p.photo, createdAt: p.createdAt });
     } finally {
       setBusy(false);
     }
@@ -109,9 +105,10 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
 
     setBusy(true);
     try {
-      const result = await createAccount({ name: su.name, email: su.email, userType: su.userType, department: su.department, password: su.password });
+      const result = await signUp({ name: su.name, email: su.email, userType: su.userType, department: su.department, password: su.password });
       if (!result.ok) { setSuErrors({ email: result.error }); return; }
-      if (!result.saved) toast('Browser storage is blocked, so the account could not be saved.', 'error');
+      if (result.saved === false) toast('Browser storage is blocked, so the account could not be saved.', 'error');
+      if (result.needsConfirm) toast('Check your email and confirm your account, then sign in.');
       // Back to Sign In with the email filled in. The user signs in next.
       setChip(su.userType); setCreated(su.name.trim()); setEmail(su.email.trim().toLowerCase()); setPassword('');
       setErrors({}); setSu(EMPTY_SIGNUP); setSuErrors({}); setShow(false); setMode('signin');
@@ -123,6 +120,18 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   async function onForgot(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
+    if (cloudEnabled) {
+      if (!fg.email.trim()) { setFgErrors({ email: 'Please enter your email address.' }); return; }
+      if (!EMAIL_RE.test(fg.email.trim())) { setFgErrors({ email: 'Please enter a valid email address.' }); return; }
+      setFgErrors({}); setFgError(null); setBusy(true);
+      try {
+        const r = await sendResetLink(fg.email);
+        if (!r.ok) setFgError(r.error); else setFgSent(true);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     const next: typeof fgErrors = {};
     if (!fg.email.trim()) next.email = 'Please enter your email address.';
     else if (!EMAIL_RE.test(fg.email.trim())) next.email = 'Please enter a valid email address.';
@@ -136,11 +145,26 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
     if (Object.keys(next).length > 0) return;
     setBusy(true);
     try {
-      const r = await resetUserPassword(fg.email, fg.name, fg.department, fg.password);
+      const r = await resetLocalPassword(fg.email, fg.name, fg.department, fg.password);
       if (!r.ok) { setFgError(r.error); return; }
       const addr = fg.email.trim().toLowerCase();
       setEmail(addr); setPassword(''); setFg(EMPTY_FG); setFgErrors({}); setShow(false); setErrors({}); setFormError(null);
       setCreated(null); setReset(true); setMode('signin');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function onRecover(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    if (rc.password.length < 6) { setRcError('Use at least 6 characters.'); return; }
+    if (rc.confirm !== rc.password) { setRcError('The passwords do not match.'); return; }
+    setRcError(null); setBusy(true);
+    try {
+      const r = await completeRecovery(rc.password);
+      if (!r.ok) { setRcError(r.error); return; }
+      setRc({ password: '', confirm: '' }); setShow(false); setEmail(''); setPassword(''); setErrors({}); setFormError(null); setCreated(null);
+      clearRecovery(); setReset(true); setMode('signin');
     } finally {
       setBusy(false);
     }
@@ -153,8 +177,8 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   const suField = (k: keyof SignupForm) => ({ 'aria-invalid': !!suErrors[k], 'aria-describedby': suErrors[k] ? `su-${k}-err` : undefined });
   const suErr = (k: keyof SignupForm) => suErrors[k] && <p id={`su-${k}-err`} className="am-error" role="alert">{suErrors[k]}</p>;
 
-  const TITLES = { signin: 'Sign in', signup: 'Sign up', forgot: 'Reset password' } as const;
-  const SUBS = { signin: 'Sign in to report, request and track.', signup: 'Register to report problems and make requests.', forgot: 'Confirm your details, then choose a new password.' } as const;
+  const TITLES = { signin: 'Sign in', signup: 'Sign up', forgot: 'Reset password', recover: 'New password' } as const;
+  const SUBS = { signin: 'Sign in to report, request and track.', signup: 'Register to report problems and make requests.', forgot: cloudEnabled ? 'Enter your email and we will send you a reset link.' : 'Confirm your details, then choose a new password.', recover: 'Choose a new password for your account.' } as const;
 
   return (
     <div className="am-backdrop" onMouseDown={(e) => { if (!dialogRef.current?.contains(e.target as Node) && !(e.target as HTMLElement).closest('.am-side')) onClose(); }}>
@@ -198,10 +222,26 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
                 <button type="button" className="am-eye" onClick={() => setShow((v) => !v)} aria-label={show ? 'Hide password' : 'Show password'} aria-pressed={show}><Icon name={show ? 'eyeoff' : 'eye'} size={17} /></button>
               </div>
               {errors.password && <p id="am-password-err" className="am-error" role="alert">{errors.password}</p>}
-              {chip !== 'admin' && <button type="button" className="am-forgot" onClick={() => { setFg({ ...EMPTY_FG, email: email.trim() }); switchMode('forgot'); }}>Forgot password?</button>}
+              {(cloudEnabled || chip !== 'admin') && <button type="button" className="am-forgot" onClick={() => { setFg({ ...EMPTY_FG, email: email.trim() }); switchMode('forgot'); }}>Forgot password?</button>}
             </div>
             <button type="submit" className="am-submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign In'}</button>
             {chip !== 'admin' && <p className="am-switch">Don't have an account? <button type="button" className="am-link" onClick={() => switchMode('signup')}>Register</button></p>}
+          </form>
+        ) : mode === 'recover' ? (
+          <form onSubmit={onRecover} noValidate className="am-form">
+            {rcError && <div className="am-alert" role="alert"><Icon name="alert" size={16} /><span>{rcError}</span></div>}
+            <div className="am-field"><label htmlFor="rc-pw">New password</label><input id="rc-pw" className="am-input" type={show ? 'text' : 'password'} autoComplete="new-password" value={rc.password} onChange={(e) => setRc((v) => ({ ...v, password: e.target.value }))} placeholder="At least 6 characters" /></div>
+            <div className="am-field"><label htmlFor="rc-confirm">Confirm new password</label><input id="rc-confirm" className="am-input" type={show ? 'text' : 'password'} autoComplete="new-password" value={rc.confirm} onChange={(e) => setRc((v) => ({ ...v, confirm: e.target.value }))} placeholder="Re-enter the new password" /></div>
+            <label className="am-check"><input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} /> Show passwords</label>
+            <button type="submit" className="am-submit" disabled={busy}>{busy ? 'Saving…' : 'Save new password'}</button>
+          </form>
+        ) : mode === 'forgot' && cloudEnabled ? (
+          <form onSubmit={onForgot} noValidate className="am-form">
+            {fgError && <div className="am-alert" role="alert"><Icon name="alert" size={16} /><span>{fgError}</span></div>}
+            {fgSent && <div className="am-success" role="status"><Icon name="done" size={16} /><span>If an account exists for <strong>{fg.email.trim()}</strong>, a reset link has been sent. Check your inbox (and spam folder).</span></div>}
+            <div className="am-field"><label htmlFor="fg-email">Email</label><input id="fg-email" className="am-input" type="email" autoComplete="email" value={fg.email} onChange={fgSet('email')} placeholder="you@university.edu" {...fgField('email')} />{fgErr('email')}</div>
+            <button type="submit" className="am-submit" disabled={busy}>{busy ? 'Sending…' : fgSent ? 'Send again' : 'Send reset link'}</button>
+            <p className="am-switch">Remembered it? <button type="button" className="am-link" onClick={() => switchMode('signin')}>Sign in</button></p>
           </form>
         ) : mode === 'forgot' ? (
           <form onSubmit={onForgot} noValidate className="am-form">
@@ -260,7 +300,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
             <p className="am-switch">Already have an account? <button type="button" className="am-link" onClick={() => switchMode('signin')}>Sign in</button></p>
           </form>
         )}
-        <p className="am-note">Prototype: accounts are saved in this browser only.</p>
+        {!cloudEnabled && <p className="am-note">Prototype: accounts are saved in this browser only.</p>}
       </div>
       </div>
       </div>

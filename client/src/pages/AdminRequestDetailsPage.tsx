@@ -10,6 +10,7 @@ import { USER_TYPE_LABELS, type UserType } from '../utils/accounts';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
 import { formatDateTime } from '../utils/format';
+import { cloudEnabled } from '../utils/supabase';
 
 const TEAMS = [...REQUEST_TEAMS, ...STAFF_TEAMS.filter((t) => !REQUEST_TEAMS.includes(t))];
 
@@ -186,7 +187,7 @@ export function AdminRequestDetailsPage() {
                   )}
                   {statusError && <p className="field-error" role="alert">{statusError}</p>}
                   <div className="row"><button type="button" className="btn btn-primary btn-sm" onClick={applyStatus} disabled={!target}>Update status</button></div>
-                  {r.kind === 'application' && <p className="muted small">The decision is recorded in this browser only. No letter, email or system outside this prototype is updated.</p>}
+                  {r.kind === 'application' && <p className="muted small">{cloudEnabled ? 'The decision is saved in the database. No letter, email or other system is updated automatically.' : 'The decision is recorded in this browser only. No letter, email or system outside this prototype is updated.'}</p>}
                 </>
               )}
             </div>

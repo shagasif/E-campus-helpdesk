@@ -12,7 +12,12 @@ export const ADMIN_PASSWORD = 'Admin@123';
 
 const KEY = 'campus-issue-reporting:accounts:v1';
 
+// With Supabase, the administrator's Users page reads this list instead of the browser's own accounts.
+let cloudDirectory: Account[] | null = null;
+export function setCloudDirectory(list: Account[] | null): void { cloudDirectory = list; }
+
 export function loadAccounts(): Account[] {
+  if (cloudDirectory) return cloudDirectory;
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return [];

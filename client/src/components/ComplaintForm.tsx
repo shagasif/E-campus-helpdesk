@@ -6,6 +6,7 @@ import { useAuth, useBase } from '../context/AuthContext';
 import { imageToDataUrl, validateImage } from '../utils/image';
 import { AiSummaryBox } from './AiSummaryBox';
 import { Icon } from './Icon';
+import { cloudEnabled } from '../utils/supabase';
 
 const MIN_DESC = 10;
 const MAX_DESC = 1000;
@@ -101,7 +102,7 @@ export function ComplaintForm() {
         <h2>Complaint submitted</h2>
         <p className="muted">Your complaint ID is:</p>
         <p className="ref-big">{submittedId}</p>
-        <p className="muted small">Saved in this browser only. Keep the ID to find the complaint later.</p>
+        <p className="muted small">{cloudEnabled ? 'Saved in the campus database. Keep the ID to find the complaint later.' : 'Saved in this browser only. Keep the ID to find the complaint later.'}</p>
         <div className="row">
           <Link className="btn btn-primary" to={`${base}/complaints/${submittedId}`}>View complaint</Link>
           <button type="button" className="btn btn-secondary" onClick={reset}>Report another issue</button>
@@ -191,7 +192,7 @@ export function ComplaintForm() {
             <Icon name="image" size={18} /> Choose a photo
           </button>
         )}
-        <p className="muted small">JPG, PNG or WebP, up to 5 MB. Stored only in this browser and never sent to Gemini.</p>
+        <p className="muted small">JPG, PNG or WebP, up to 5 MB. {cloudEnabled ? 'Saved with the complaint and never sent to Gemini.' : 'Stored only in this browser and never sent to Gemini.'}</p>
         {imageError && <p className="field-error" role="alert">{imageError}</p>}
       </div>
 

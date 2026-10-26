@@ -99,8 +99,9 @@ Give a campus one clear place to report and track equipment and facility problem
 
 **Storage**
 
-- Browser **localStorage** only. No external database, no Supabase/Firebase. Keys used: `campus-issue-reporting:complaints:v1`, `:accounts:v1`, `:session:v1`, `:admin-profile:v1`, `:login-role:v1`.
-- Pictures are resized (max 1000 px, JPEG) and stored in the browser. They are **not** stored on any server.
+- **Without Supabase (default):** browser **localStorage** only. Keys used: `campus-issue-reporting:complaints:v1`, `:accounts:v1`, `:session:v1`, `:admin-profile:v1`, `:login-role:v1`.
+- **With Supabase (optional):** accounts, complaints, help requests, applications, replies and pictures are saved in your Supabase project, so every device and the administrator see the same data. See *Supabase Database (optional)*.
+- Pictures are resized (max 1000 px, JPEG). Without Supabase they stay in the browser; with Supabase they are saved with the complaint in your database.
 
 The backend exists only to call Gemini safely. In development the Vite dev server forwards `/api` requests to the backend (`vite.config.ts` proxy → `http://localhost:3001`).
 
@@ -169,6 +170,35 @@ Gemini is called **only from the backend**, never from the browser.
 - Example — original: *"The computer in Lab 2 switches off repeatedly when students try to use it."* → possible summary: *"Lab 2 computer repeatedly shuts down during use."*
 
 ---
+
+## Supabase Database (optional)
+Supabase gives the site a shared database and real sign-in. If you do nothing, the site keeps working exactly as before (data in the browser only).
+
+**Setup (once)**
+1. Create a free project at https://supabase.com.
+2. Open **SQL Editor -> New query**, paste the whole file `supabase/schema.sql` and press **Run**. It creates the tables, the security rules (Row Level Security) and the helper functions. It is safe to run again.
+3. Open **Project Settings -> API** and copy the **Project URL** and the **anon public** key.
+4. In `client`, copy `.env.example` to `.env.local` and fill in:
+   ```
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your_anon_public_key
+   ```
+5. In `client` run `npm install` (it installs `@supabase/supabase-js`), then `npm run dev`.
+6. **Authentication -> Providers -> Email:** for quick testing, turn **Confirm email** off. If you leave it on, new people must click the link in their e-mail before they can sign in.
+7. Register once on the website, then make yourself the administrator by running this in the SQL Editor (use your own email):
+   ```
+   update public.profiles set role = 'admin' where email = 'your-email@example.com';
+   ```
+8. For password-reset e-mails: **Authentication -> URL Configuration** -> set **Site URL** to your website address (for example `http://localhost:5173` while testing, and your Vercel address when published) and add the same address under **Redirect URLs**.
+
+**Publishing on Vercel:** in the Vercel project, open **Settings -> Environment Variables** and add the same two `VITE_SUPABASE_...` values, then redeploy.
+
+**Security notes**
+- The **anon** key may be in the website; it is safe only because Row Level Security is on. Users can read only their own rows, and only administrators can change status, assign, reply and see private notes.
+- Never put the **service_role** key in the website or in GitHub.
+- The Gemini key still stays only in `server/.env`.
+- The old fixed admin login (`admin@campus.edu` / `Admin@123`) works only without Supabase. With Supabase, the administrator is a normal account whose role you set to `admin`.
+- Data already saved in a browser (localStorage) is not copied to Supabase automatically.
 
 ## Design System
 
@@ -393,7 +423,7 @@ The rules this project follows, and how:
 5. **No fabricated API responses, credentials or campus data.**
 6. **Browser-local data is never presented as sent to a campus administrator.**
 7. **The API key never appears in the browser or in Git.**
-8. **No Supabase, Firebase or external database.** Front-end accounts were added at the owner's request and are clearly described as not real security.
+8. **Supabase is optional.** Without it the site is a browser-only prototype and its login is described as not real security. With it, login uses Supabase Auth and access is enforced by Row Level Security in the database.
 9. **Extra features only with the owner's approval.** The additions are listed under Mandatory Requirements.
 10. **No dead buttons.** Every control does something; if the backend is off, the AI button explains how to start it.
 11. **No unnecessary replacement of working code.** Older saved data is migrated rather than discarded.

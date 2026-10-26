@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { homePath, useAuth } from '../context/AuthContext';
 import { Icon, type IconName } from '../components/Icon';
@@ -45,13 +45,16 @@ function SectionHead({ badge, children, sub }: { badge: string; children: React.
 
 /** Public landing page. Sign In / Register opens an overlay; after signing in, the dashboard opens. */
 export function LandingPage({ openAuth = false }: { openAuth?: boolean }) {
-  const { session } = useAuth();
+  const { session, recovery, clearRecovery } = useAuth();
   const [authOpen, setAuthOpen] = useState(openAuth);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const trigger = useRef<HTMLElement | null>(null);
 
   const open = () => { trigger.current = document.activeElement as HTMLElement | null; setAuthOpen(true); };
   const close = useCallback(() => { setAuthOpen(false); trigger.current?.focus(); }, []);
+  // Opening the password-reset link from an e-mail shows the "new password" form straight away.
+  useEffect(() => { if (recovery) setAuthOpen(true); }, [recovery]);
+  const closeAuth = useCallback(() => { if (recovery) clearRecovery(); close(); }, [recovery, clearRecovery, close]);
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   if (session) return <Navigate to={homePath(session.role)} replace />;
@@ -195,7 +198,7 @@ export function LandingPage({ openAuth = false }: { openAuth?: boolean }) {
         </div>
       </footer>
 
-      {authOpen && <AuthModal onClose={close} />}
+      {authOpen && <AuthModal onClose={closeAuth} startMode={recovery ? 'recover' : undefined} />}
     </div>
   );
 }

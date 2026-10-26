@@ -6,6 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Pagination } from '../components/Pagination';
 import { Icon } from '../components/Icon';
 import { formatDate } from '../utils/format';
+import { cloudEnabled } from '../utils/supabase';
 
 const PAGE_SIZE = 10;
 
@@ -33,7 +34,7 @@ export function AdminUsersPage() {
     <>
       <header className="page-head">
         <h1>Users</h1>
-        <p className="muted">People who created an account in this browser. Passwords are never shown here.</p>
+        <p className="muted">{cloudEnabled ? 'People who registered on this site. Passwords are never shown here.' : 'People who created an account in this browser. Passwords are never shown here.'}</p>
       </header>
       {users.length === 0 ? (
         <EmptyState icon="users" title="No user accounts yet" text="Accounts appear here after students or staff use Create account on the login page." />
@@ -82,7 +83,7 @@ export function AdminUsersPage() {
           )}
         </>
       )}
-      <p className="muted small">User management (blocking, roles, password resets) needs a backend and a database and is not part of this prototype.</p>
+      <p className="muted small">{cloudEnabled ? 'To make someone an administrator or remove an account, use the Supabase dashboard (Table Editor, then profiles).' : 'User management (blocking, roles, password resets) needs a backend and a database and is not part of this prototype.'}</p>
     </>
   );
 }

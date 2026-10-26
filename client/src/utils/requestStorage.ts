@@ -24,7 +24,7 @@ function validNote(n: unknown): n is RequestNote {
   return isDate(v.at) && typeof v.by === 'string' && typeof v.text === 'string';
 }
 
-function normalize(x: unknown): ServiceRequest | null {
+export function normalizeRequest(x: unknown): ServiceRequest | null {
   if (typeof x !== 'object' || x === null) return null;
   const r = x as Record<string, unknown>;
   if (typeof r.id !== 'string' || typeof r.title !== 'string' || typeof r.description !== 'string' || !isDate(r.createdAt)) return null;
@@ -71,7 +71,7 @@ export function loadRequests(): RequestLoadResult {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) throw new Error('not an array');
-    const valid = parsed.map(normalize).filter((r): r is ServiceRequest => r !== null);
+    const valid = parsed.map(normalizeRequest).filter((r): r is ServiceRequest => r !== null);
     const skipped = parsed.length - valid.length;
     return { requests: valid, warning: skipped > 0 ? `${skipped} saved request(s) were damaged and could not be loaded.` : undefined };
   } catch {

@@ -8,6 +8,7 @@ import { applicationType, requestCategoryLabel } from '../utils/requestConfig';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
 import { formatDateTime } from '../utils/format';
+import { cloudEnabled } from '../utils/supabase';
 
 /** User view of one of their own help requests or applications (read-only). */
 export function RequestDetailsPage() {
@@ -104,7 +105,7 @@ export function RequestDetailsPage() {
               ))}
             </ol>
           </section>
-          <p className="muted small">Saved in this browser only. This prototype has no backend, so no university office receives it yet.</p>
+          <p className="muted small">{cloudEnabled ? 'Saved in the campus database. Staff can see it and will reply here.' : 'Saved in this browser only. This prototype has no backend, so no university office receives it yet.'}</p>
         </div>
       </div>
     </>

@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { NEXT_STATUSES, REQUEST_STATUS_LABELS, STATUS_NEEDS_TEXT, type RequestKind, type RequestStatus, type ServiceRequest } from '../types/request';
 import { loadRequests, saveRequests } from '../utils/requestStorage';
 import { useAuth } from './AuthContext';
+import { cloudEnabled } from '../utils/supabase';
+import { addUserReplyRemote, fetchRequests, insertNote, insertReplyAdmin, insertRequest, saveRequestAdmin } from '../utils/cloud';
 
 export interface NewRequestInput {
   kind: RequestKind;
@@ -44,7 +46,9 @@ function makeReference(kind: RequestKind, existing: ServiceRequest[]): string {
 }
 
 export function RequestsProvider({ children }: { children: ReactNode }) {
-  const [initial] = useState(() => loadRequests());
+  const { session } = useAuth();
+  const uid = session?.id;
+  const [initial] = useState(() => (cloudEnabled ? { requests: [] as ServiceRequest[], warning: undefined as string | undefined } : loadRequests()));
   const [requests, setRequests] = useState<ServiceRequest[]>(initial.requests);
   const [warning, setWarning] = useState<string | null>(initial.warning ?? null);
   const latest = useRef(requests);
@@ -54,9 +58,43 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
   const first = useRef(true);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
+    if (cloudEnabled) return;
     const err = saveRequests(requests);
     setWarning((prev) => err ?? (prev && prev.startsWith('Could not save') ? null : prev));
   }, [requests]);
+
+  // ---- Supabase: load what this person may see, and refresh when they come back to the tab ----
+  const reload = useCallback(async () => {
+    try {
+      const list = await fetchRequests();
+      latest.current = list;
+      setRequests(list);
+      setWarning((prev) => (prev && prev.startsWith('Could not load') ? null : prev));
+    } catch (e) {
+      setWarning(`Could not load requests from the server: ${(e as Error).message}`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    if (!uid) { latest.current = []; setRequests([]); return; }
+    void reload();
+    const onVisible = () => { if (document.visibilityState === 'visible') void reload(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [uid, reload]);
+
+  /** Sends one change to the server. If the server refuses, the page shows why and loads the real data again. */
+  const sync = useCallback((job: Promise<unknown>) => {
+    if (!cloudEnabled) return;
+    job.then(
+      () => setWarning((prev) => (prev && prev.startsWith('Could not save to the server') ? null : prev)),
+      (e: Error) => {
+        setWarning(`Could not save to the server: ${e.message}`);
+        void reload();
+      },
+    );
+  }, [reload]);
 
   const addRequest: RequestsValue['addRequest'] = useCallback((input) => {
     const now = new Date().toISOString();
@@ -80,24 +118,26 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     const next = [request, ...latest.current];
     latest.current = next;
     setRequests(next);
+    if (cloudEnabled) sync(insertRequest(request));
     return request;
-  }, []);
+  }, [sync]);
 
   const commit = useCallback((next: ServiceRequest[]) => {
     latest.current = next;
     setRequests(next);
   }, []);
 
-  const patch = useCallback((id: string, fn: (r: ServiceRequest, now: string) => ServiceRequest | string): RequestResult => {
+  const patch = useCallback((id: string, fn: (r: ServiceRequest, now: string) => ServiceRequest | string, save?: (r: ServiceRequest) => Promise<unknown>): RequestResult => {
     const current = latest.current.find((r) => r.id === id);
     if (!current) return { ok: false, error: 'This request no longer exists.' };
     const result = fn(current, new Date().toISOString());
     if (typeof result === 'string') return { ok: false, error: result };
     commit(latest.current.map((r) => (r.id === id ? result : r)));
+    if (cloudEnabled && save) sync(save(result));
     return { ok: true };
-  }, [commit]);
+  }, [commit, sync]);
 
-  const assignRequest: RequestsValue['assignRequest'] = useCallback((id, team, _by) => patch(id, (r, now) => ({ ...r, assignedTo: team || undefined, updatedAt: now })), [patch]);
+  const assignRequest: RequestsValue['assignRequest'] = useCallback((id, team, _by) => patch(id, (r, now) => ({ ...r, assignedTo: team || undefined, updatedAt: now }), saveRequestAdmin), [patch]);
 
   const changeRequestStatus: RequestsValue['changeRequestStatus'] = useCallback((id, status, by, text) => patch(id, (r, now) => {
     const allowed = NEXT_STATUSES[r.kind][r.status] ?? [];
@@ -109,7 +149,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     const next: ServiceRequest = { ...r, status, updatedAt: now, history: [...r.history, { status, at: now, by, note: note || undefined }] };
     if (status === 'more_info') next.replies = [...r.replies, { at: now, by, text: note }];
     return next;
-  }), [patch]);
+  }, (r) => saveRequestAdmin(r).then(() => (status === 'more_info' ? insertReplyAdmin(id, by, (text ?? '').trim()) : undefined))), [patch]);
 
   const addRequestReply: RequestsValue['addRequestReply'] = useCallback((id, text, by, fromUser) => patch(id, (r, now) => {
     const t = text.trim();
@@ -122,14 +162,14 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
       next.history = [...r.history, { status: 'under_review', at: now, by, note: 'The requester replied.' }];
     }
     return next;
-  }), [patch]);
+  }, () => (fromUser ? addUserReplyRemote(id, text.trim()) : insertReplyAdmin(id, by, text.trim()))), [patch]);
 
   const addInternalNote: RequestsValue['addInternalNote'] = useCallback((id, text, by) => patch(id, (r, now) => {
     const t = text.trim();
     if (!t) return 'Write a note first.';
     if (t.length > 1000) return 'Please keep the note under 1000 characters.';
     return { ...r, internalNotes: [...r.internalNotes, { at: now, by, text: t }], updatedAt: now };
-  }), [patch]);
+  }, () => insertNote(id, by, text.trim())), [patch]);
 
   const value = useMemo<RequestsValue>(
     () => ({ requests, warning, addRequest, assignRequest, changeRequestStatus, addRequestReply, addInternalNote }),

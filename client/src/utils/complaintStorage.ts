@@ -20,7 +20,7 @@ function validEvent(e: unknown): e is StatusEvent {
 }
 
 /** Accepts records saved by older versions and fills in the new fields. */
-function normalize(x: unknown): Complaint | null {
+export function normalizeComplaint(x: unknown): Complaint | null {
   if (typeof x !== 'object' || x === null) return null;
   const c = x as Record<string, unknown>;
   if (typeof c.id !== 'string' || typeof c.description !== 'string' || !isDate(c.createdAt)) return null;
@@ -79,7 +79,7 @@ export function loadComplaints(): LoadResult {
     // Sample records from the very first version have no "title": replace them with the new sample set.
     const legacyDemo = parsed.filter((p) => (p as { isDemo?: boolean })?.isDemo === true && typeof (p as { title?: unknown }).title !== 'string');
     const kept = parsed.filter((p) => !legacyDemo.includes(p));
-    const valid = kept.map(normalize).filter((c): c is Complaint => c !== null);
+    const valid = kept.map(normalizeComplaint).filter((c): c is Complaint => c !== null);
     const skipped = kept.length - valid.length;
     return {
       complaints: valid,
